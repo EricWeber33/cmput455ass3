@@ -1,0 +1,309 @@
+# Public tests
+
+clear_board
+boardsize 7
+play b c6
+play w d5
+play b a7
+play w g7
+play b a2
+play w e4
+play b a3
+play w f1
+play b c3
+play w d7
+play b d3
+play w g4
+play b c4
+play w b7
+play b c2
+play w f2
+play b g5
+play w b6
+play b e2
+play w b4
+play b b2
+play w a5
+play b b5
+play w g3
+play b g1
+play w e7
+play b a4
+play w d4
+play b b1
+play w f4
+play b a1
+play w e3
+play b c1
+play w e6
+play b f6
+play w e1
+play b e5
+play w g6
+play b c7
+#   A B C D E F G 
+# 7 X O X O O . O 7 
+# 6 . O X . O X O 6 
+# 5 O X . O X . X 5
+# 4 X O X O O O O 4 
+# 3 X . X X O . O 3 
+# 2 X X X . X O . 2 
+# 1 X X X . O O X 1 
+#   A B C D E F G 
+# White to play
+
+policy random
+10 policy_moves
+#? [d1 d6 f3 f7 0.25 0.25 0.25 0.25]
+
+policy pattern
+20 policy_moves
+#? [d1 d6 f3 f7 0.417 0.102 0.218 0.264]
+
+# Test to see genmove works with rr selection
+play w f3
+play b c5
+play w d1
+play b d2
+#   A B C D E F G
+# 7 X O X O O . O 7
+# 6 . O X . O X O 6
+# 5 O X X O X . X 5
+# 4 X O X O O O O 4
+# 3 X . X X O O O 3
+# 2 X X X X X O . 2
+# 1 X X X O O O X 1
+#   A B C D E F G
+# White to play
+
+policy random
+30 genmove w
+#? [f7]
+
+clear_board
+play b e6
+play w a5
+play b d7
+play w g5
+play b f3
+play w b1
+play b b5
+play w e7
+play b g6
+play w a6
+play b a3
+play w b2
+play b f4
+play w a2
+play b g2
+play w c5
+play b d5
+play w c6
+play b b7
+play w f2
+play b d6
+play w g1
+play b d2
+play w f1
+play b a4
+play w d4
+play b b4
+play w e5
+play b a7
+play w e1
+play b c1
+play w c2
+play b f6
+play w a1
+play b g4
+play w b6
+play b c3
+play w f5
+play b d3
+play w e4
+#   A B C D E F G 
+# 7 X X . X O . . 7 
+# 6 O O O X X X X 6 
+# 5 O X O X O O O 5 
+# 4 X X . O O X X 4 
+# 3 X . X X . X . 3
+# 2 O O O X . O X 2 
+# 1 O O X . O O O 1 
+#   A B C D E F G 
+#Black to play
+
+
+policy random
+40 policy_moves
+#? [c4 c7 d1 e2 e3 g3 g7 0.143 0.143 0.143 0.143 0.143 0.143 0.143]
+
+policy pattern
+50 policy_moves
+#? [c4 c7 d1 e2 e3 g3 g7 0.079 0.155 0.047 0.341 0.158 0.092 0.128]
+
+play b g7
+selection ucb
+60 genmove w
+#? [e2|e3|c4]
+
+
+clear_board
+play b b1
+play w c1
+play b g7
+play w e7
+play b a5
+play w e6
+play b a6
+play w e4
+play b b6
+play w c3
+play b f1
+play w c2
+play b a1
+play w g3
+play b g6
+play w c4
+play b e2
+play w f2
+play b a2
+play w f7
+play b g2
+play w f6
+play b b5
+play w c7
+play b b7
+play w c6
+play b e5
+play w d7
+play b e1
+play w b4
+play b c5
+play w g4
+play b d3
+play w a3
+play b d4
+play w f4
+play b b3
+play w d6
+play b g1
+play w d1
+play b g5
+
+#   A B C D E F G
+# 7 . X O O O O X 7
+# 6 X X O O O O X 6
+# 5 X X X . X . X 5
+# 4 . O O X O O O 4
+# 3 O X O X . . O 3
+# 2 X . O . X O X 2
+# 1 X X O O X X X 1
+#   A B C D E F G
+#Black to play
+
+
+policy random
+70 policy_moves
+#? [a4 d2 d5 e3 f3 0.2 0.2 0.2 0.2 0.2]
+
+policy pattern
+80 policy_moves
+#? [a4 d2 d5 e3 f3 0.142 0.176 0.151 0.233 0.298]
+
+clear_board
+boardsize 4
+selection rr
+policy pattern
+play b b4
+play w c4
+play b a3
+play w b3
+play b c2
+play w d3
+play b b1
+play w d1
+play b a4
+play w b2
+play b a2
+#    A B C D 
+#  4 X X O . 4
+#  3 X O . O 3 
+#  2 X O X . 2
+#  1 . X . O 1 
+#    A B C D 
+# White to play
+
+# rr, pattern
+90 genmove w
+#? [c1|c3|d2]
+
+clear_board
+play b b4
+play w c4
+play b a3
+play w b3
+play b c2
+play w d3
+play b b1
+play w d1
+play b a4
+play w b2
+play b a2
+#    A B C D
+#  4 X X O . 4
+#  3 X O . O 3
+#  2 X O X . 2
+#  1 . X . O 1
+#    A B C D
+# White to play
+
+# ucb, pattern
+selection ucb
+100 genmove w
+#? [c1]
+
+clear_board
+play b b4
+play w c4
+play b a3
+play w b3
+play b c2
+play w d3
+play b b1
+play w d1
+play b a2
+#    A B C D
+#  4 . X O . 4
+#  3 X O . O 3
+#  2 X . X . 2
+#  1 . X . O 1
+#    A B C D
+# White to play
+
+# ucb, random
+policy random
+110 genmove w
+#? [b2|c1|c3|d2]
+
+clear_board
+play b b4
+play w c4
+play b a3
+play w b3
+play b c2
+play w d3
+play b b1
+play w d1
+play b a2
+#    A B C D
+#  4 . X O . 4
+#  3 X O . O 3
+#  2 X . X . 2
+#  1 . X . O 1
+#    A B C D
+# White to play
+
+# rr, random
+selection rr
+120 genmove w
+#? [b2|c1|c3|d2]
