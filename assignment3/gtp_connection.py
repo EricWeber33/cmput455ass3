@@ -299,8 +299,7 @@ class GtpConnection:
     
     def simulate_from_root(self, board: GoBoard):
         # this will use selection determined from instance variable 'ucb'
-        INFINITY = float("inf")
-
+        
         def mean(moves, i: int) -> float:
             return moves[i][0] / moves[i][1]
 
@@ -319,7 +318,7 @@ class GtpConnection:
                     best = i
             assert best != -1
             return best
-
+        
         if self.ucb:
             # use ucb selection
             moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
@@ -335,7 +334,7 @@ class GtpConnection:
                 winner = play_func(board)
                 if winner == color:
                     res[move][0] += 1
-                res[move][1] += 1   
+                res[move][1] += 1 
                 
             
         else:
