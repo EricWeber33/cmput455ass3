@@ -21,7 +21,7 @@ from board_util import (
 from board import GoBoard
 import numpy as np
 import re
-
+from math import log, sqrt
 
 class GtpConnection:
     def __init__(self, go_engine, board, debug_mode=False):
@@ -299,12 +299,45 @@ class GtpConnection:
     
     def simulate_from_root(self, board: GoBoard):
         # this will use selection determined from instance variable 'ucb'
+        INFINITY = float("inf")
+
+        def mean(moves, i: int) -> float:
+            return moves[i][0] / moves[i][1]
+
+        def ucb(moves, C: float, i: int, n: int) -> float:
+            if moves[i][1] == 0:
+                return INFINITY
+            return mean(moves, i) + C * sqrt(log(n) / moves[i][1])
+
+        def findBest(stats, C: float, n: int) -> int:
+            best = -1
+            bestScore = -INFINITY
+            for i in range(len(stats)):
+                score = ucb(stats, C, i, n)
+                if score > bestScore:
+                    bestScore = score
+                    best = i
+            assert best != -1
+            return best
+
         if self.ucb:
             # use ucb selection
+            moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
+            res = {move:[0,0] for move in moves}
+            num_simulation = len(moves) * 10
+            C = 0.4
             if self.pattern:
-                pass
+                play_func = self.play_game_pattern
             else:
-                pass
+                play_func = self.play_game_random
+            for n in range(num_simulation):
+                move = findBest(res, C, n)
+                winner = play_func(board)
+                if winner == color:
+                    res[move][0] += 1
+                res[move][1] += 1   
+                
+            
         else:
             #use round robin selection
             moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
