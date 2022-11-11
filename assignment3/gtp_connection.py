@@ -18,7 +18,7 @@ from board_util import (
     MAXSIZE,
     coord_to_point,
 )
-from board import GoBoard
+from board import GoBoard, GO_POINT
 import numpy as np
 import re
 
@@ -71,6 +71,15 @@ class GtpConnection:
             "play": (2, "Usage: play {b,w} MOVE"),
             "legal_moves": (1, "Usage: legal_moves {w,b}"),
         }
+
+        # preload patterns dictionary
+        self.weights = {}
+        with open("weights.txt", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                pattern, weight = line.split()
+                self.weights[int(pattern)] = float(weight)
+
 
     def write(self, data):
         stdout.write(data)
@@ -297,7 +306,11 @@ class GtpConnection:
         except Exception as e:
             self.respond("Error: {}".format(str(e)))
     
-    def simulate_from_root(self, board: GoBoard):
+    def _best_move(self, moves):
+        moves = [[move, (res[0]/res[1])] for move, res in moves.items()]
+        return sorted(moves, key=lambda x: x[1], reverse=True)[0][0]
+
+    def simulate_from_root(self, board: GoBoard, color):
         # this will use selection determined from instance variable 'ucb'
         if self.ucb:
             # use ucb selection
@@ -307,7 +320,9 @@ class GtpConnection:
                 pass
         else:
             #use round robin selection
-            moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
+            moves = GoBoardUtil.generate_legal_moves(board, color)
+            if not moves:
+                return None
             res = {move:[0,0] for move in moves}
             if self.pattern:
                 play_func = self.play_game_pattern
@@ -315,35 +330,57 @@ class GtpConnection:
                 play_func = self.play_game_random
             for move in moves:
                 color = board.current_player
-                board.play_move(move)
+                board.play_move(move, color)
                 for _ in range(10):
                     winner = play_func(board)
                     if winner == color:
                         res[move][0] += 1
-                    res[move][1] += 1    
+                    res[move][1] += 1
+                board.current_player = color
+                board.board[move] = EMPTY
+            return self._best_move(res)
                 
 
     def play_game_random(self, board: GoBoard):
         board = board.copy()
-        while move := GoBoardUtil.generate_random_move(board, board.curent_player):
-            if move == 'resign':
+        while move := GoBoardUtil.generate_random_move(board, board.current_player, False):
+            if move is None:
                 break
             else:
                 board.play_move(move, board.current_player)
         return GoBoardUtil.opponent(board.current_player)
 
     def play_game_pattern(self, board: GoBoard):
-        pass
-
+        board = board.copy()
+        while moves := GoBoardUtil.generate_legal_moves(board, board.current_player):
+            best_move = 0
+            max_weight = 0
+            shift = board.size + 1
+            for i in range(len(moves)):
+                area = np.concatenate((
+                    board.board[moves[i]-shift-1:moves[i]-shift+2],
+                    [board.board[moves[i]-1], board.board[moves[i]+1]],
+                    board.board[moves[i]+shift-1:moves[i]+shift+2]
+                ))
+                area = area[::-1]
+                weight = 0
+                for j in range(len(area)):
+                    weight += area[j] * (4 ** i)
+                if weight > max_weight:
+                    max_weight = weight
+                    best_move = moves[i]
+            board.play_move(best_move, board.current_player)
+        return GoBoardUtil.opponent(board.current_player)
+        
 
     def genmove_cmd(self, args):
         """ generate a move for color args[0] in {'b','w'} """
         # change this method to use your solver
         board_color = args[0].lower()
         board = self.board.copy()
-
+        self.respond(board.board)
         color = color_to_int(board_color)
-        move = self.go_engine.get_move(self.board, color)
+        move = self.simulate_from_root(board, color)
         if move is None:
             self.respond('unknown')
             return
