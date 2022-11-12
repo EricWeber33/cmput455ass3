@@ -24,6 +24,8 @@ import numpy as np
 import re
 from math import log, sqrt
 
+INFINITY = float("inf")
+
 class GtpConnection:
     def __init__(self, go_engine, board, debug_mode=False):
         """
@@ -322,13 +324,23 @@ class GtpConnection:
                 return INFINITY
             return mean(moves, i) + C * sqrt(log(n) / moves[i][1])
 
-        def findBest(stats, C: float, n: int) -> int:
+        def findBest(moves, C: float, n: int) -> int:
             best = -1
             bestScore = -INFINITY
-            for i in range(len(stats)):
-                score = ucb(stats, C, i, n)
+            for i in range(len(moves)):
+                score = ucb(moves, C, i, n)
                 if score > bestScore:
                     bestScore = score
+                    best = i
+            assert best != -1
+            return best
+
+        def bestArm(moves) -> int:  # Most-pulled arm
+            best = -1
+            bestScore = -INFINITY
+            for i in range(len(moves)):
+                if moves[i][1] > bestScore:
+                    bestScore = moves[i][1]
                     best = i
             assert best != -1
             return best
@@ -336,7 +348,9 @@ class GtpConnection:
         if self.ucb:
             # use ucb selection
             moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
-            res = {move:[0,0] for move in moves}
+            if not moves:
+                return None
+            res = [[0, 0] for _ in moves]
             num_simulation = len(moves) * 10
             C = 0.4
             if self.pattern:
@@ -345,11 +359,16 @@ class GtpConnection:
                 play_func = self.play_game_random
             for n in range(num_simulation):
                 move = findBest(res, C, n)
+                board.play_move(moves[move], color)
                 winner = play_func(board)
                 if winner == color:
                     res[move][0] += 1
-                res[move][1] += 1 
-                
+                res[move][1] += 1
+                board.current_player = color
+                board.board[move] = EMPTY 
+            bestIndex = bestArm(res)
+            best = moves[bestIndex]
+            return best            
             
         else:
             #use round robin selection
