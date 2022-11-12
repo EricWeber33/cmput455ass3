@@ -7,6 +7,7 @@ in the Deep-Go project by Isaac Henrion and Amos Storkey
 at the University of Edinburgh.
 """
 import traceback
+import random
 from sys import stdin, stdout, stderr
 from board_util import (
     GoBoardUtil,
@@ -18,7 +19,7 @@ from board_util import (
     MAXSIZE,
     coord_to_point,
 )
-from board import GoBoard
+from board import GoBoard, GO_POINT
 import numpy as np
 import re
 from math import log, sqrt
@@ -71,6 +72,15 @@ class GtpConnection:
             "play": (2, "Usage: play {b,w} MOVE"),
             "legal_moves": (1, "Usage: legal_moves {w,b}"),
         }
+
+        # preload patterns dictionary
+        self.weights = {}
+        with open("weights.txt", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                pattern, weight = line.split()
+                self.weights[int(pattern)] = float(weight)
+
 
     def write(self, data):
         stdout.write(data)
@@ -297,7 +307,11 @@ class GtpConnection:
         except Exception as e:
             self.respond("Error: {}".format(str(e)))
     
-    def simulate_from_root(self, board: GoBoard):
+    def _best_move(self, moves):
+        moves = [[move, (res[0]/res[1])] for move, res in moves.items()]
+        return sorted(moves, key=lambda x: x[1], reverse=True)[0][0]
+
+    def simulate_from_root(self, board: GoBoard, color):
         # this will use selection determined from instance variable 'ucb'
         
         def mean(moves, i: int) -> float:
@@ -339,7 +353,9 @@ class GtpConnection:
             
         else:
             #use round robin selection
-            moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
+            moves = GoBoardUtil.generate_legal_moves(board, color)
+            if not moves:
+                return None
             res = {move:[0,0] for move in moves}
             if self.pattern:
                 play_func = self.play_game_pattern
@@ -347,40 +363,63 @@ class GtpConnection:
                 play_func = self.play_game_random
             for move in moves:
                 color = board.current_player
-                board.play_move(move)
+                board.play_move(move, color)
                 for _ in range(10):
                     winner = play_func(board)
                     if winner == color:
                         res[move][0] += 1
-                    res[move][1] += 1    
+                    res[move][1] += 1
+                board.current_player = color
+                board.board[move] = EMPTY
+            return self._best_move(res)
                 
 
     def play_game_random(self, board: GoBoard):
         board = board.copy()
-        while move := GoBoardUtil.generate_random_move(board, board.curent_player):
-            if move == 'resign':
+        while move := GoBoardUtil.generate_random_move(board, board.current_player, False):
+            if move is None:
                 break
             else:
                 board.play_move(move, board.current_player)
         return GoBoardUtil.opponent(board.current_player)
 
     def play_game_pattern(self, board: GoBoard):
-        pass
-
-
+        board = board.copy()
+        while moves := GoBoardUtil.generate_legal_moves(board, board.current_player):
+           moves_p = self.get_pattern_probabilities(board, moves)
+           move = random.choices([m[0] for m in moves_p], [m[1] for m in moves_p], k=1)[0]
+           board.play_move(move, board.current_player)
+        return GoBoardUtil.opponent(board.current_player)
+    
+    def get_pattern_probabilities(self, board: GoBoard, moves):
+        shift = board.size + 1
+        move_weights = {move:0 for move in moves}
+        for i in range(len(moves)):
+            area = np.concatenate((
+                board.board[moves[i]+shift-1:moves[i]+shift+2],
+                [board.board[moves[i]-1], board.board[moves[i]+1]],
+                board.board[moves[i]-shift-1:moves[i]-shift+2],
+            ))
+            weight = 0
+            for j in range(len(area)):
+                weight += area[j] * (4**j)
+            move_weights[moves[i]] = self.weights[weight]
+        total_weight = sum(iter(move_weights.values()))
+        return [[move, round(weight/total_weight, 3)] for move, weight in move_weights.items()]
+        
+            
     def genmove_cmd(self, args):
         """ generate a move for color args[0] in {'b','w'} """
         # change this method to use your solver
         board_color = args[0].lower()
         board = self.board.copy()
-
         color = color_to_int(board_color)
-        move = self.go_engine.get_move(self.board, color)
+        move = self.simulate_from_root(board, color)
         if move is None:
             self.respond('unknown')
             return
         move_coord = point_to_coord(move, self.board.size)
-        move_as_string = format_point(move_coord)
+        move_as_string = format_point(move_coord).lower()
         if self.board.is_legal(move, color):
             self.board.play_move(move, color)
             self.respond(move_as_string)
@@ -404,12 +443,18 @@ class GtpConnection:
             self.respond()
 
     def policy_moves_cmd(self, args):
-        if self.pattern:
-            pass
-        else:
-            moves = GoBoardUtil.generate_legal_moves(
+        moves = GoBoardUtil.generate_legal_moves(
                 self.board, self.board.current_player)
-            moves = [format_point(point_to_coord(move, self.board.size)) for move in moves]
+        if self.pattern:
+            moves = self.get_pattern_probabilities(self.board, moves)
+            for move in moves:
+                move[0] = format_point(point_to_coord(move[0], self.board.size)).lower()
+            moves.sort(key=lambda x: x[0])
+            result = [m[0] for m in moves]
+            result.extend(m[1] for m in moves)
+            self.respond(" ".join(map(str, result)))
+        else:
+            moves = [format_point(point_to_coord(move, self.board.size)).lower() for move in moves]
             p = round(1/len(moves), 3)
             self.respond(" ".join(sorted(moves)) + f" {p}"*len(moves))
             
