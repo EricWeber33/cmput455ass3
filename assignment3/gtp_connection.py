@@ -42,7 +42,7 @@ class GtpConnection:
         self.go_engine = go_engine
         self.board = board
         self.pattern = False
-        self.ucb = False
+        self.use_ucb = False
         self.commands = {
             "protocol_version": self.protocol_version_cmd,
             "quit": self.quit_cmd,
@@ -313,73 +313,56 @@ class GtpConnection:
         moves = [[move, (res[0]/res[1])] for move, res in moves.items()]
         return sorted(moves, key=lambda x: x[1], reverse=True)[0][0]
 
+    def _best_arm(self, moves):
+        most_pulls = 0
+        best_move = None
+        for move, results in moves.items():
+            pulls = results[1]
+            if pulls > most_pulls:
+                most_pulls = pulls
+                best_move = move
+        return best_move
+
+    def ucb(self, moves, n):
+        """ returns move to sim on"""
+        best_move = None
+        best_value = -INFINITY
+        for move, results in moves.items():
+            if results[1] == 0:
+                return move
+            value = (results[0] / results[1]) + 0.4 * sqrt(log(n) / results[1])
+            if value > best_value:
+                best_value = value
+                best_move = move
+        return best_move
+
     def simulate_from_root(self, board: GoBoard, color):
-        # this will use selection determined from instance variable 'ucb'
-        
-        def mean(moves, i: int) -> float:
-            return moves[i][0] / moves[i][1]
-
-        def ucb(moves, C: float, i: int, n: int) -> float:
-            if moves[i][1] == 0:
-                return INFINITY
-            return mean(moves, i) + C * sqrt(log(n) / moves[i][1])
-
-        def findBest(moves, C: float, n: int) -> int:
-            best = -1
-            bestScore = -INFINITY
-            for i in range(len(moves)):
-                score = ucb(moves, C, i, n)
-                if score > bestScore:
-                    bestScore = score
-                    best = i
-            assert best != -1
-            return best
-
-        def bestArm(moves) -> int:  # Most-pulled arm
-            best = -1
-            bestScore = -INFINITY
-            for i in range(len(moves)):
-                if moves[i][1] > bestScore:
-                    bestScore = moves[i][1]
-                    best = i
-            assert best != -1
-            return best
-        
-        if self.ucb:
+        moves = GoBoardUtil.generate_legal_moves(board, color)
+        if not moves:
+            return None
+        if self.pattern:
+            play_func = self.play_game_pattern
+        else:
+            play_func = self.play_game_random
+        res = {move:[0,0] for move in moves}
+        # this will use selection determined from instance variable 'use_ucb'
+        if self.use_ucb:
             # use ucb selection
-            moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
-            if not moves:
-                return None
-            res = [[0, 0] for _ in moves]
-            num_simulation = len(moves) * 10
-            C = 0.4
-            if self.pattern:
-                play_func = self.play_game_pattern
-            else:
-                play_func = self.play_game_random
-            for n in range(num_simulation):
-                move = findBest(res, C, n)
-                board.play_move(moves[move], color)
+            num_simulations = len(moves) * 10
+            for n in range(num_simulations):
+                color = board.current_player
+                move = self.ucb(res, n+1)
+                board.play_move(move, color)
                 winner = play_func(board)
                 if winner == color:
                     res[move][0] += 1
                 res[move][1] += 1
                 board.current_player = color
-                board.board[move] = EMPTY 
-            bestIndex = bestArm(res)
-            best = moves[bestIndex]
-            return best            
-            
+                board.board[move] = EMPTY
+            #self.respond(res)
+            return self._best_arm(res)
         else:
             #use round robin selection
-            moves = GoBoardUtil.generate_legal_moves(board, color)
-            if not moves:
-                return None
-            res = {move:[0,0] for move in moves}
-            if self.pattern:
-                play_func = self.play_game_pattern
-            else:
-                play_func = self.play_game_random
             for move in moves:
                 color = board.current_player
                 board.play_move(move, color)
@@ -458,7 +441,7 @@ class GtpConnection:
         if not selection in ['ucb', 'rr']:
             self.respond(f'Unsupported selection: {selection}')
         else:
-            self.ucb = True if selection == 'ucb' else False
+            self.use_ucb = True if selection == 'ucb' else False
             self.respond()
 
     def policy_moves_cmd(self, args):
